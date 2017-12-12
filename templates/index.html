@@ -1,0 +1,188 @@
+{% load  staticfiles %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <link rel="stylesheet" href="/static/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{% static  'datetimepicker/bootstrap-datetimepicker.min.css' %}">
+    <link rel="stylesheet" href="{% static  'css/index.css' %}">
+</head>
+<body>
+<div class="container">
+    <h1>会议室预定</h1>
+    <div class="container" id="errors"></div>
+    <hr>
+    {% csrf_token %}
+    <button type="button" class="btn btn-success pull-right" id="btnSave">保存</button>
+    <div class='input-group pull-right col-md-2 '>
+        <input type='text' class="form-control" id='datetimepicker11' placeholder="请选择日期"/>
+        <span class="input-group-addon">
+                <span class="glyphicon glyphicon-calendar"></span>
+            </span>
+    </div>
+
+
+
+
+    <table class="table table-bordered">
+
+        <thead>
+        <tr>
+            <th>会议室</th>
+            {% for time in time_choice %}
+                <th>{{ time.1 }}</th>
+            {% endfor %}
+        </tr>
+        </thead>
+        <tbody id="tBody">
+
+        </tbody>
+    </table>
+
+
+</div>
+
+
+<script src="{% static 'js/jquery-3.1.1.js' %}"></script>
+<script src="{% static 'dist/js/bootstrap.min.js' %}"></script>
+<script src="{% static 'datetimepicker/bootstrap-datetimepicker.min.js' %}"></script>
+<script src="{% static 'datetimepicker/bootstrap-datetimepicker.zh-CN.js' %}"></script>
+<script type="text/javascript">
+    Date.prototype.Format = function (fmt) { //author: meizz
+        var o = {
+            "M+": this.getMonth() + 1, //月份
+            "d+": this.getDate(), //日
+            "h+": this.getHours(), //小时
+            "m+": this.getMinutes(), //分
+            "s+": this.getSeconds(), //秒
+            "q+": Math.floor((this.getMonth() + 3) / 3), //季度
+            "S": this.getMilliseconds() //毫秒
+        };
+        if (/(y+)/.test(fmt)) fmt = fmt.replace(RegExp.$1, (this.getFullYear() + "").substr(4 - RegExp.$1.length));
+        for (var k in o)
+            if (new RegExp("(" + k + ")").test(fmt)) fmt = fmt.replace(RegExp.$1, (RegExp.$1.length == 1) ? (o[k]) : (("00" + o[k]).substr(("" + o[k]).length)));
+        return fmt;
+    };
+
+    $(function () {
+        datetimepicker();
+        getdata(new Date().Format("yyyy-MM-dd"))
+    });
+
+    //选择日期 查询数据
+    function datetimepicker() {
+        $('#datetimepicker11').datetimepicker({
+            minView: "month",
+            language: "zh-CN",
+            sideBySide: true,
+            format: 'yyyy-mm-dd',
+            bootcssVer: 3,
+            startDate: new Date(),
+            autoclose: true
+        });
+
+        $datetimepicker11 = $("#datetimepicker11");
+        $datetimepicker11.on("change", function () {
+
+        CHOSEN_DATE= $datetimepicker11.val();
+        getdata(CHOSEN_DATE)
+        });
+    }
+
+    //ajax 发送日期并生成html
+    function getdata(selectData) {
+        SELECTED_ROOM = {DEL:{},ADD:{}};
+        $("#tBody").empty();
+        $.ajax({
+            url: '/selecting/',
+            type: 'get',
+            data: {selectData: selectData},b 9
+            dataType: 'JSON',
+            success: function (data) {
+                console.log(data);
+                console.log(data.state);
+                console.log(data.msg);
+                console.log(data.data);
+
+                if (data.state) {
+                    $.each(data.data, function (i, item) {
+                        {# console.log(i,item);#}
+                        $tr = $(document.createElement('tr'));
+                        $th = $(document.createElement('th'));
+                        $th.html(item.title);
+                        $tr.append($th);
+                        $.each(item.row_list, function (j, row) {
+                            {#                            console.log(j,row);#}
+                            $td = $(document.createElement('td'));
+                            $td.html(row.text);
+                            if (row.chosen) {
+                                $td.addClass("chosen")
+                            }
+                            $.each(row.attrs, function (k, attribute) {
+                                {#                                console.log(attribute[0],attribute[1]);#}
+                                $td.attr(attribute[0], attribute[1])
+                            });
+                            $tr.append($td)
+                        });
+                        $("#tBody").append($tr)
+                    })
+                }
+            }
+        })
+
+    }
+
+    SELECTED_ROOM = {DEL:{},ADD:{}};
+    CHOSEN_DATE = new Date().Format('yyyy-MM-dd');
+    //
+    $("#tBody").on("click", "td[disable!='true']", function () {
+
+        var room_id = $(this).attr("room_id");
+        var time_id = $(this).attr("time_id");
+        if ($(this).hasClass("chosen")) {
+                $(this).removeAttr("disable").removeClass("chosen").empty();
+                if (SELECTED_ROOM.DEL[room_id]){
+                    SELECTED_ROOM.DEL[room_id].push(time_id);
+                }else{
+                    SELECTED_ROOM.DEL[room_id]=[time_id]
+                }
+
+
+        } else if ($(this).hasClass("selected")){
+            $(this).removeClass("selected");
+             var index=SELECTED_ROOM.ADD[room_id].indexOf(time_id);
+             SELECTED_ROOM.ADD[room_id].splice(index,1)
+        }
+        else {
+            $(this).addClass("selected");
+            if (SELECTED_ROOM.ADD[room_id]){
+                    SELECTED_ROOM.ADD[room_id].push(time_id);
+                }else{
+                    SELECTED_ROOM.ADD[room_id]=[time_id]
+                }
+        }
+    });
+
+
+    $("#btnSave").on("click",function () {
+        $.ajax({
+            url:'/selecting/',
+            type:"POST",
+            headers:{"X-CSRFToken":$("input[name=csrfmiddlewaretoken]").val()},
+            data:{chosen_data: CHOSEN_DATE, selected_room: JSON.stringify(SELECTED_ROOM)},
+            dataType:"JSON",
+            success:function (data) {
+                if (data.state){
+                    getdata(CHOSEN_DATE)
+                }else{
+                    $("#errors").html(data.msg)
+                }
+            }
+        })
+    })
+
+</script>
+
+</body>
+</html>
